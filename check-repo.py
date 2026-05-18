@@ -431,7 +431,8 @@ def legend_box(width: int) -> list[str]:
         ).replace(" | ", sep),
         centered(
             f"{COLORS['cyan']}a:{COLORS['nc']} add a repo | "
-            f"{COLORS['cyan']}d:{COLORS['nc']} delete a repo",
+            f"{COLORS['cyan']}d:{COLORS['nc']} display all/current | "
+            f"{COLORS['cyan']}x:{COLORS['nc']} delete a repo",
             width - 2,
         ).replace(" | ", sep),
     ]
@@ -465,7 +466,20 @@ def main():
     parser.add_argument("-i", "--interactive", action="store_true", help="Enable interactive live-updating TUI mode.")
     args, _ = parser.parse_known_args()
 
-    targets = load_repo_targets()
+    show_all_categories = False
+
+    def visible_targets() -> list[tuple[str, str]]:
+        all_targets = load_repo_targets()
+        if show_all_categories:
+            with open(get_config_path(), "r", encoding="utf-8") as f:
+                config = json.load(f)
+            merged: list[tuple[str, str]] = []
+            for cat in ("default", "linux", "macos", "wsl"):
+                merged.extend((cat, os.path.expanduser(d)) for d in config.get(cat, []))
+            return merged
+        return all_targets
+
+    targets = visible_targets()
     dirs = [d for _, d in targets]
     categories = [c for c, _ in targets]
     term_width = shutil.get_terminal_size((100, 30)).columns
@@ -616,24 +630,39 @@ def main():
                     (categories[i], dirs[i]): states[i]
                     for i in range(min(len(states), len(dirs), len(categories)))
                 }
-                targets = load_repo_targets()
+                targets = visible_targets()
                 dirs = [d for _, d in targets]
                 categories = [c for c, _ in targets]
                 states = [previous.get((cat, d), ("PENDING", abbreviate(d), "-", 0, 0)) for cat, d in targets]
                 added_idx = next((i for i, (cat, d) in enumerate(targets) if cat == category and d == new_repo), None)
-                if added_idx is None:
-                    added_idx = len(targets) - 1
-                selected_idx = added_idx
-                lines = render_ui()
-                clear_screen()
-                sys.stdout.write("\n".join(lines) + "\n")
-                sys.stdout.flush()
-                printed_lines = len(lines)
-                states[added_idx] = check_repo(new_repo)
+                if added_idx is not None:
+                    selected_idx = added_idx
+                    lines = render_ui()
+                    clear_screen()
+                    sys.stdout.write("\n".join(lines) + "\n")
+                    sys.stdout.flush()
+                    printed_lines = len(lines)
+                    states[added_idx] = check_repo(new_repo)
+                else:
+                    selected_idx = min(selected_idx, len(states) - 1) if states else 0
                 status_lines.append(f"{COLORS['green']}Added repo ({category}):{COLORS['nc']} {abbreviate(new_repo)}")
             else:
                 status_lines.append(f"{COLORS['yellow']}Not added (empty or duplicate).{COLORS['nc']}")
-        elif key == "d" and dirs:
+        elif key == "d":
+            show_all_categories = not show_all_categories
+            previous = {
+                (categories[i], dirs[i]): states[i]
+                for i in range(min(len(states), len(dirs), len(categories)))
+            }
+            targets = visible_targets()
+            dirs = [d for _, d in targets]
+            categories = [c for c, _ in targets]
+            states = [previous.get((cat, d), ("PENDING", abbreviate(d), "-", 0, 0)) for cat, d in targets]
+            selected_idx = min(selected_idx, len(states) - 1) if states else 0
+            mode = "all categories" if show_all_categories else "current system categories"
+            status_lines.append(f"{COLORS['cyan']}Display mode:{COLORS['nc']} {mode}")
+            run_scan(show_full_ui=True)
+        elif key == "x" and dirs:
             target = dirs[selected_idx]
             target_category = categories[selected_idx]
             status_lines.append(f"{COLORS['yellow']}Delete {abbreviate(target)} ({target_category})? y/n{COLORS['nc']}")
@@ -652,7 +681,7 @@ def main():
                     (categories[i], dirs[i]): states[i]
                     for i in range(min(len(states), len(dirs), len(categories)))
                 }
-                targets = load_repo_targets()
+                targets = visible_targets()
                 dirs = [d for _, d in targets]
                 categories = [c for c, _ in targets]
                 if not dirs:

@@ -156,8 +156,8 @@ In interactive mode:
 - `P`: `git push` on selected repo
 - `r`: refresh all repos
 - `a`: add a repo target to a category
-- `d`: toggle display mode (`all` categories ↔ current system categories)
-- `x`: delete selected repo target
+- `d`: delete selected repo target
+- `t`: toggle display mode (`all` categories ↔ current system categories)
 - `q`: quit
 
 ## Output states

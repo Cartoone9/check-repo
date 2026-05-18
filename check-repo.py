@@ -431,8 +431,8 @@ def legend_box(width: int) -> list[str]:
         ).replace(" | ", sep),
         centered(
             f"{COLORS['cyan']}a:{COLORS['nc']} add a repo | "
-            f"{COLORS['cyan']}d:{COLORS['nc']} display all/current | "
-            f"{COLORS['cyan']}x:{COLORS['nc']} delete a repo",
+            f"{COLORS['cyan']}d:{COLORS['nc']} delete a repo | "
+            f"{COLORS['cyan']}t:{COLORS['nc']} toggle display",
             width - 2,
         ).replace(" | ", sep),
     ]
@@ -648,7 +648,7 @@ def main():
                 status_lines.append(f"{COLORS['green']}Added repo ({category}):{COLORS['nc']} {abbreviate(new_repo)}")
             else:
                 status_lines.append(f"{COLORS['yellow']}Not added (empty or duplicate).{COLORS['nc']}")
-        elif key == "d":
+        elif key == "t":
             show_all_categories = not show_all_categories
             previous = {
                 (categories[i], dirs[i]): states[i]
@@ -660,9 +660,9 @@ def main():
             states = [previous.get((cat, d), ("PENDING", abbreviate(d), "-", 0, 0)) for cat, d in targets]
             selected_idx = min(selected_idx, len(states) - 1) if states else 0
             mode = "all categories" if show_all_categories else "current system categories"
-            status_lines.append(f"{COLORS['cyan']}Display mode:{COLORS['nc']} {mode}")
+            status_lines.append(f"{COLORS['cyan']}Display mode (toggle):{COLORS['nc']} {mode}")
             run_scan(show_full_ui=True)
-        elif key == "x" and dirs:
+        elif key == "d" and dirs:
             target = dirs[selected_idx]
             target_category = categories[selected_idx]
             status_lines.append(f"{COLORS['yellow']}Delete {abbreviate(target)} ({target_category})? y/n{COLORS['nc']}")

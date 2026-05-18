@@ -555,11 +555,19 @@ def main():
         sys.stdout.flush()
         printed_lines = len(lines)
 
-    def run_scan(show_full_ui: bool) -> None:
+    def run_scan(show_full_ui: bool, freeze_selected: bool = False) -> None:
         nonlocal states, printed_lines
+        frozen_idx = selected_idx if freeze_selected and selected_idx is not None and 0 <= selected_idx < len(dirs) else None
+        frozen_state = states[frozen_idx] if frozen_idx is not None and frozen_idx < len(states) else None
         states = [("PENDING", abbreviate(d), "-", 0, 0) for d in dirs]
+        if frozen_idx is not None and frozen_state is not None:
+            states[frozen_idx] = frozen_state
         with ThreadPoolExecutor(max_workers=min(16, len(dirs))) as ex:
-            futures = {ex.submit(check_repo, d): i for i, d in enumerate(dirs)}
+            futures = {
+                ex.submit(check_repo, d): i
+                for i, d in enumerate(dirs)
+                if i != frozen_idx
+            }
             while True:
                 lines = render_ui() if show_full_ui else render(states, width, categories, selected_idx=None)
                 clear_screen()
@@ -614,10 +622,9 @@ def main():
             states[selected_idx] = check_repo(repo)
             status_lines.append(f"{COLORS['blue']}{status_hint} complete{COLORS['nc']} {abbreviate(repo)}")
         elif key == "r":
-            status_lines.append(f"{COLORS['blue']}REFRESHING...{COLORS['nc']}")
-            run_scan(show_full_ui=True)
-            selected_idx = None
-            status_lines.append(f"{COLORS['cyan']}Refreshed all repositories.{COLORS['nc']}")
+            status_lines.append(f"{COLORS['blue']}REFRESHING...{COLORS['nc']} Selected row is frozen.")
+            run_scan(show_full_ui=True, freeze_selected=True)
+            status_lines.append(f"{COLORS['cyan']}Refreshed repositories (selected row unchanged).{COLORS['nc']}")
         elif key == "a":
             mapping = {"1": "default", "2": "linux", "3": "macos", "4": "wsl"}
             status_lines.append(

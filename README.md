@@ -5,6 +5,7 @@
 
 <!-- toc -->
 - [Introduction](#introduction)
+- [At a glance](#at-a-glance)
 - [Features](#features)
 - [Requirements](#requirements)
 - [Installation](#installation)
@@ -26,6 +27,16 @@ It can run either as:
 - a single-shot report (good for scripts/cron), or
 - a lightweight interactive TUI with keyboard actions for refresh, pull, push, add, and delete.
 
+## At a glance
+
+| What | Details |
+| --- | --- |
+| Main script | `check-repo.py` |
+| Launcher | `check-repo.zsh` |
+| Config file | `repo_targets.json` |
+| Mode 1 | Non-interactive dashboard output |
+| Mode 2 | Interactive terminal UI (`-i` / `--interactive`) |
+
 ## Features
 - Concurrent repo scanning for fast updates.
 - Per-repo branch/ahead/behind indicators.
@@ -41,9 +52,11 @@ It can run either as:
 - A Unix-like terminal for interactive mode (uses `termios`/`tty`)
 
 ## Installation
-Clone this repository into a stable tools directory, then make the launcher executable.
+Clone into a stable tools directory, then make the launcher executable.
 
-A common location is `~/.local/share/check-repo`:
+### 1) Clone
+
+Common location:
 
 ```bash
 mkdir -p ~/.local/share
@@ -54,8 +67,8 @@ chmod +x check-repo.zsh
 
 If you prefer another location (for example `~/scripts/check-repo`), use that path consistently in the steps below.
 
-### Pick your command name (`check`, or `check-repo`)
-If you want to run it like a real command (for example `check` or `check-repo`), create a symlink in a directory already in your `PATH`:
+### 2) Pick command name
+Create a symlink in `~/.local/bin` so you can run either `check` or `check-repo`:
 
 ```bash
 mkdir -p ~/.local/bin
@@ -64,12 +77,14 @@ ln -sf "$HOME/.local/share/check-repo/check-repo.zsh" ~/.local/bin/check
 ln -sf "$HOME/.local/share/check-repo/check-repo.zsh" ~/.local/bin/check-repo
 ```
 
-Then ensure `~/.local/bin` is in your `PATH` (for zsh):
+### 3) Ensure `~/.local/bin` is in `PATH` (zsh)
 
 ```bash
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 ```
+
+### 4) Optional: use aliases instead of symlinks
 
 If you prefer aliases instead of symlinks:
 
@@ -100,19 +115,19 @@ Category behavior:
 ## Usage
 
 ### Non-interactive mode
-Run once and print the dashboard:
+Run once and print dashboard output:
 
 ```bash
 python3 check-repo.py
 ```
 
-or:
+Alternative:
 
 ```bash
 ./check-repo.zsh
 ```
 
-or if you have set an alias:
+If aliased:
 
 ```bash
 check
@@ -144,12 +159,14 @@ In interactive mode:
 - `q`: quit
 
 ## Output states
-- `CLEAN`: no uncommitted changes, no ahead/behind.
-- `DIRTY`: local changes detected (`git status --porcelain`).
-- `UPDATES`: branch is ahead and/or behind remote.
-- `NOT_FOUND`: configured path does not exist.
-- `NOT_REPO`: path exists but is not a Git repository.
-- `PULLING` / `PUSHING` / `DELETING`: transient interactive action states.
+| State | Meaning |
+| --- | --- |
+| `CLEAN` | No uncommitted changes, no ahead/behind. |
+| `DIRTY` | Local changes detected (`git status --porcelain`). |
+| `UPDATES` | Branch is ahead and/or behind remote. |
+| `NOT_FOUND` | Configured path does not exist. |
+| `NOT_REPO` | Path exists but is not a Git repository. |
+| `PULLING` / `PUSHING` / `DELETING` | Temporary interactive action states. |
 
 ## Environment variables
 - `CHECK_REPOS_CONFIG`: path to an alternate JSON config file.
@@ -172,8 +189,8 @@ CHECK_REPOS_CONFIG=~/my-repo-list.json python3 check-repo.py
 Inspired by [git-overview](https://github.com/yimyom/git-overview) by David Bellot.
 
 Similar projects:
-[gita](https://github.com/nosarthur/gita)
-[repocheck](https://github.com/bevane/repocheck)
+- [gita](https://github.com/nosarthur/gita)
+- [repocheck](https://github.com/bevane/repocheck)
 
 ## License
 

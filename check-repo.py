@@ -513,6 +513,17 @@ def main():
         lines.extend(status_box(status_lines))
         return lines
 
+    def show_action_state(index: int, action_state: str, status_message: str) -> None:
+        nonlocal printed_lines
+        st, tgt, br, ah, bh = states[index]
+        states[index] = (action_state, tgt, br, ah, bh)
+        status_lines.append(status_message)
+        lines = render_ui()
+        clear_screen()
+        sys.stdout.write("\n".join(lines) + "\n")
+        sys.stdout.flush()
+        printed_lines = len(lines)
+
     def run_scan(show_full_ui: bool) -> None:
         nonlocal states, printed_lines
         states = [("PENDING", abbreviate(d), "-", 0, 0) for d in dirs]
@@ -560,13 +571,7 @@ def main():
                 continue
             repo = dirs[selected_idx]
             status_hint = "PULLING" if key == "p" else "PUSHING"
-            st, tgt, br, ah, bh = states[selected_idx]
-            states[selected_idx] = (status_hint, tgt, br, ah, bh)
-            lines = render_ui()
-            clear_screen()
-            sys.stdout.write("\n".join(lines) + "\n")
-            sys.stdout.flush()
-            printed_lines = len(lines)
+            show_action_state(selected_idx, status_hint, f"{COLORS['blue']}{status_hint}...{COLORS['nc']} {abbreviate(repo)}")
             cmd = ["git", "-C", repo, "pull", "--ff-only"] if key == "p" else ["git", "-C", repo, "push"]
             subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             states[selected_idx] = check_repo(repo)
@@ -604,15 +609,28 @@ def main():
             sys.stdout.flush()
             printed_lines = len(lines)
             new_path = sys.stdin.readline().strip()
-            status_lines.append(f"{COLORS['blue']}ADDING...{COLORS['nc']} {abbreviate(os.path.expanduser(new_path or ''))}")
+            new_repo = os.path.expanduser(new_path) if new_path else ""
+            status_lines.append(f"{COLORS['blue']}ADDING...{COLORS['nc']} {abbreviate(new_repo or '')}")
             if new_path and save_repo_target(new_path, category):
+                previous = {
+                    (categories[i], dirs[i]): states[i]
+                    for i in range(min(len(states), len(dirs), len(categories)))
+                }
                 targets = load_repo_targets()
                 dirs = [d for _, d in targets]
                 categories = [c for c, _ in targets]
-                selected_idx = next_select(selected_idx, 1)
-                states, _ = scan_all(dirs, categories, width, selected_idx=None, render_live=False)
-                selected_idx = next_select(selected_idx, 1)
-                status_lines.append(f"{COLORS['green']}Added repo ({category}):{COLORS['nc']} {abbreviate(os.path.expanduser(new_path))}")
+                states = [previous.get((cat, d), ("PENDING", abbreviate(d), "-", 0, 0)) for cat, d in targets]
+                added_idx = next((i for i, (cat, d) in enumerate(targets) if cat == category and d == new_repo), None)
+                if added_idx is None:
+                    added_idx = len(targets) - 1
+                selected_idx = added_idx
+                lines = render_ui()
+                clear_screen()
+                sys.stdout.write("\n".join(lines) + "\n")
+                sys.stdout.flush()
+                printed_lines = len(lines)
+                states[added_idx] = check_repo(new_repo)
+                status_lines.append(f"{COLORS['green']}Added repo ({category}):{COLORS['nc']} {abbreviate(new_repo)}")
             else:
                 status_lines.append(f"{COLORS['yellow']}Not added (empty or duplicate).{COLORS['nc']}")
         elif key == "d" and dirs:
@@ -628,24 +646,19 @@ def main():
             if answer not in {"y", "yes"}:
                 status_lines.append(f"{COLORS['yellow']}Delete canceled:{COLORS['nc']} {abbreviate(target)}")
                 continue
-            st, tgt, br, ah, bh = states[selected_idx]
-            states[selected_idx] = ("DELETING", tgt, br, ah, bh)
-            status_lines.append(f"{COLORS['blue']}DELETING...{COLORS['nc']} {abbreviate(target)}")
-            lines = render_ui()
-            if sys.stdout.isatty() and printed_lines:
-                sys.stdout.write(f"\033[{printed_lines}A")
-            sys.stdout.write("\n".join(lines) + "\n")
-            sys.stdout.flush()
-            printed_lines = len(lines)
+            show_action_state(selected_idx, "DELETING", f"{COLORS['blue']}DELETING...{COLORS['nc']} {abbreviate(target)}")
             if delete_repo_target(target, target_category):
+                previous = {
+                    (categories[i], dirs[i]): states[i]
+                    for i in range(min(len(states), len(dirs), len(categories)))
+                }
                 targets = load_repo_targets()
                 dirs = [d for _, d in targets]
                 categories = [c for c, _ in targets]
                 if not dirs:
                     return
+                states = [previous.get((cat, d), ("PENDING", abbreviate(d), "-", 0, 0)) for cat, d in targets]
                 selected_idx = min(selected_idx, len(dirs) - 1)
-                states, _ = scan_all(dirs, categories, width, selected_idx=None, render_live=False)
-                selected_idx = next_select(selected_idx, 1)
                 status_lines.append(f"{COLORS['red']}Deleted repo:{COLORS['nc']} {abbreviate(target)}")
             else:
                 status_lines.append(f"{COLORS['yellow']}Delete failed (repo not found in {target_category} targets).{COLORS['nc']}")

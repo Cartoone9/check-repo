@@ -1,0 +1,9 @@
+{
+  "default": [
+    "~/example",
+    "~/example2"
+  ],
+  "linux": [],
+  "macos": [],
+  "wsl": []
+}

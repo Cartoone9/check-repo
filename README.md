@@ -84,7 +84,7 @@ Edit `repo_targets.json` to define what gets scanned.
 
 Category behavior:
 - `default`: always included.
-- `linux`: included on Linux when Hyprland is detected.
+- `linux`: included on Linux (except WSL, which uses the `wsl` category).
 - `macos`: included on macOS.
 - `wsl`: included on WSL.
 

@@ -320,7 +320,7 @@ def load_repo_targets() -> list[tuple[str, str]]:
     elif system == "linux":
         if is_wsl():
             targets.extend(("wsl", os.path.expanduser(d)) for d in config.get("wsl", []))
-        elif os.getenv("XDG_CURRENT_DESKTOP") == "Hyprland" or subprocess.run(["pgrep", "-x", "Hyprland"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+        else:
             targets.extend(("linux", os.path.expanduser(d)) for d in config.get("linux", []))
 
     return targets

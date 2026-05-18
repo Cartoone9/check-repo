@@ -326,14 +326,23 @@ def load_repo_targets() -> list[tuple[str, str]]:
     return targets
 
 
+def normalize_user_path(path: str) -> str:
+    expanded = os.path.expanduser(path.strip())
+    home = os.path.expanduser("~")
+    if expanded.startswith(home + os.sep):
+        return "~" + expanded[len(home):]
+    return expanded
+
+
 def save_repo_target(path: str, category: str) -> bool:
     with open(get_config_path(), "r", encoding="utf-8") as f:
         config = json.load(f)
-    expanded = os.path.expanduser(path.strip())
+    normalized = normalize_user_path(path)
+    expanded = os.path.expanduser(normalized)
     config.setdefault(category, [])
     if expanded in [os.path.expanduser(p) for p in config[category]]:
         return False
-    config[category].append(expanded)
+    config[category].append(normalized)
     with open(get_config_path(), "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2)
         f.write("\n")
@@ -449,7 +458,7 @@ def main():
     interactive = args.interactive and sys.stdin.isatty() and sys.stdout.isatty()
 
     def selectable_indices() -> list[int]:
-        return [i for i, (s, *_rest) in enumerate(states) if s != "CLEAN"]
+        return list(range(len(states)))
 
     def next_select(current: int, direction: int) -> int:
         picks = selectable_indices()
@@ -498,8 +507,7 @@ def main():
     run_scan(show_full_ui=interactive)
     if not interactive:
         return
-    selectable = [i for i, (s, *_rest) in enumerate(states) if s != "CLEAN"]
-    selected_idx = selectable[0] if selectable else 0
+    selected_idx = 0
     status_lines.append(f"{COLORS['cyan']}Ready.{COLORS['nc']} Use commands above.")
 
     while True:

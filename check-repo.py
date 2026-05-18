@@ -653,9 +653,12 @@ def main():
                 categories = [c for c, _ in targets]
                 if not dirs:
                     return
+                previous = {
+                    (categories[i], dirs[i]): states[i]
+                    for i in range(min(len(states), len(dirs), len(categories)))
+                }
+                states = [previous.get((cat, d), ("PENDING", abbreviate(d), "-", 0, 0)) for cat, d in targets]
                 selected_idx = min(selected_idx, len(dirs) - 1)
-                states, _ = scan_all(dirs, categories, width, selected_idx=None, render_live=False)
-                selected_idx = next_select(selected_idx, 1)
                 status_lines.append(f"{COLORS['red']}Deleted repo:{COLORS['nc']} {abbreviate(target)}")
             else:
                 status_lines.append(f"{COLORS['yellow']}Delete failed (repo not found in {target_category} targets).{COLORS['nc']}")

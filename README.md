@@ -39,20 +39,27 @@ It can run either as:
 - A Unix-like terminal for interactive mode (uses `termios`/`tty`)
 
 ## Installation
-Clone or copy this repository somewhere on your system, then make the launcher executable:
+Clone this repository into a stable tools directory, then make the launcher executable.
+
+A common XDG-style location is `~/.local/share/check-repo`:
 
 ```bash
+mkdir -p ~/.local/share
+git clone <YOUR_FORK_OR_THIS_REPO_URL> ~/.local/share/check-repo
+cd ~/.local/share/check-repo
 chmod +x check-repo.zsh
 ```
 
+If you prefer another location (for example `~/src/check-repo`), use that path consistently in the steps below.
+
 ### Pick your command name (`check`, or `check-repo`)
-If you want to run it like a real command (for example `check` or `check-repo`), create a small symlink in a directory already in your `PATH`:
+If you want to run it like a real command (for example `check` or `check-repo`), create a symlink in a directory already in your `PATH`:
 
 ```bash
 mkdir -p ~/.local/bin
-ln -sf "$HOME/scripts/check-repo.zsh" ~/.local/bin/check
+ln -sf "$HOME/.local/share/check-repo/check-repo.zsh" ~/.local/bin/check
 # or
-ln -sf "$HOME/scripts/check-repo.zsh" ~/.local/bin/check-repo
+ln -sf "$HOME/.local/share/check-repo/check-repo.zsh" ~/.local/bin/check-repo
 ```
 
 Then ensure `~/.local/bin` is in your `PATH` (for zsh):
@@ -65,9 +72,9 @@ source ~/.zshrc
 If you prefer aliases instead of symlinks:
 
 ```bash
-alias check="$HOME/scripts/check-repo.zsh"
+alias check="$HOME/.local/share/check-repo/check-repo.zsh"
 # or
-alias check-repo="$HOME/scripts/check-repo.zsh"
+alias check-repo="$HOME/.local/share/check-repo/check-repo.zsh"
 ```
 
 ## Configuration
@@ -157,9 +164,6 @@ CHECK_REPOS_CONFIG=~/my-repo-list.json python3 check-repo.py
 
 - Interactive mode requires a TTY (keyboard + terminal).
 - Pull/push output is intentionally suppressed in the UI.
-- `lazy-lock.json` changes are ignored when determining dirty status.
-
-kerfile, etc.).
 
 ## Credits
 

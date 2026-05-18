@@ -75,7 +75,7 @@ def check_repo(path: str) -> tuple[str, str, str, int, int]:
     status_first = status.splitlines()[0] if status.splitlines() else "## -"
     branch, ahead, behind = parse_branch_tracking(status_first)
     dirty = subprocess.run(["git", "-C", path, "status", "--porcelain"], capture_output=True, text=True).stdout
-    dirty_lines = [ln for ln in dirty.splitlines() if "lazy-lock.json" not in ln]
+    dirty_lines = dirty.splitlines()
 
     if "ahead" in status or "behind" in status:
         return "UPDATES", target, branch, ahead, behind

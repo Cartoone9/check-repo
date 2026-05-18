@@ -157,6 +157,7 @@ In interactive mode:
 - `r`: refresh all repos
 - `a`: add a repo target to a category
 - `d`: delete selected repo target
+- `t`: toggle display mode (`all` categories ↔ current system categories)
 - `q`: quit
 
 ## Output states

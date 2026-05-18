@@ -287,7 +287,8 @@ def render(states: list[tuple[str, str, str, int, int]], width: int, categories:
 
     title = "check-repo"
     right_columns_min = branch_col + 1 + ahead_col + 1 + behind_col + 1 + status_col
-    min_line_width = 2 + 2 + max_target + 2 + right_columns_min
+    right_padding = 2
+    min_line_width = 2 + 2 + max_target + 2 + right_columns_min + right_padding
     right_header = f"{'branch':>{branch_col}} {'ahead':>{ahead_col}} {'behind':>{behind_col}} {'status':>{status_col}}"
     header_line = f"{'Targets':<{max_target + 2}} {right_header}"
     content_rows = [title, progress_row, header_line, *[r[1] if r[0] == "header" else f"  {r[1][1]} {format_branch(r[1][2])} {r[1][5]}" for r in grouped_target_rows], *summary_rows]
@@ -301,9 +302,9 @@ def render(states: list[tuple[str, str, str, int, int]], width: int, categories:
     out.append(draw_separator(computed_width))
 
     target_text_width = max_target
-    header_left_width = max(0, computed_width - 2 - len(right_header) - 2)
+    header_left_width = max(0, computed_width - 2 - len(right_header) - 2 - right_padding)
     header_left = f"{'Targets':<{header_left_width}}"
-    out.append(draw_row(f"{header_left}  {right_header}", computed_width))
+    out.append(draw_row(f"{header_left}  {right_header}{' ' * right_padding}", computed_width))
     for row_type, row in grouped_target_rows:
         if row_type == "header":
             label = visible_text(row)
@@ -320,15 +321,15 @@ def render(states: list[tuple[str, str, str, int, int]], width: int, categories:
         ahead_colored = f"{COLORS['green'] if ahead > 0 else COLORS['nc']}{ahead:>{ahead_col}}{COLORS['nc']}"
         behind_colored = f"{COLORS['red'] if behind > 0 else COLORS['nc']}{behind:>{behind_col}}{COLORS['nc']}"
         right_columns = f"{branch_colored} {ahead_colored} {behind_colored} {color}{state:>{status_col}}{COLORS['nc']}"
-        left_width = max(0, computed_width - 2 - len(visible_text(right_columns)) - 2)
+        left_width = max(0, computed_width - 2 - len(visible_text(right_columns)) - 2 - right_padding)
         left_text = f"{cursor} {target_display}"
         left_text = line_fit(left_text, left_width).ljust(left_width)
-        line = f"{left_text}  {right_columns}"
+        line = f"{left_text}  {right_columns}{' ' * right_padding}"
         if selected_idx == idx:
             plain_right_columns = f"{branch_short:>{branch_col}} {ahead:>{ahead_col}} {behind:>{behind_col}} {state:>{status_col}}"
-            plain_left_width = max(0, computed_width - 2 - len(plain_right_columns) - 2)
+            plain_left_width = max(0, computed_width - 2 - len(plain_right_columns) - 2 - right_padding)
             plain_left_text = line_fit(f"› {target_display}", plain_left_width).ljust(plain_left_width)
-            selected_line = f"{plain_left_text}  {plain_right_columns}"
+            selected_line = f"{plain_left_text}  {plain_right_columns}{' ' * right_padding}"
             out.append(draw_selected_row(selected_line, computed_width))
         else:
             out.append(draw_row(line, computed_width))
@@ -512,7 +513,7 @@ def main():
     states = [("PENDING", abbreviate(d), "-", 0, 0) for d in dirs]
     printed_lines = 0
     status_lines: list[str] = [f"{COLORS['cyan']}Starting check...{COLORS['nc']}"]
-    selected_idx = 0
+    selected_idx: int | None = None
     interactive = args.interactive and sys.stdin.isatty() and sys.stdout.isatty()
 
     def selectable_indices() -> list[int]:
@@ -590,10 +591,16 @@ def main():
         if key == "q":
             return
         if key in {"j", "DOWN"}:
+            if selected_idx is None:
+                selected_idx = 0
             selected_idx = next_select(selected_idx, 1)
         elif key in {"k", "UP"}:
+            if selected_idx is None:
+                selected_idx = 0
             selected_idx = next_select(selected_idx, -1)
         elif key in {"p", "P"}:
+            if selected_idx is None:
+                selected_idx = 0
             blocked_states = {"CLEAN", "NOT_FOUND", "NOT_REPO"}
             if states[selected_idx][0] in blocked_states:
                 state_name = states[selected_idx][0]
@@ -609,7 +616,7 @@ def main():
         elif key == "r":
             status_lines.append(f"{COLORS['blue']}REFRESHING...{COLORS['nc']}")
             run_scan(show_full_ui=True)
-            selected_idx = next_select(selected_idx, 1)
+            selected_idx = None
             status_lines.append(f"{COLORS['cyan']}Refreshed all repositories.{COLORS['nc']}")
         elif key == "a":
             mapping = {"1": "default", "2": "linux", "3": "macos", "4": "wsl"}
@@ -679,6 +686,8 @@ def main():
             status_lines.append(f"{COLORS['cyan']}Display mode (toggle):{COLORS['nc']} {mode}")
             run_scan(show_full_ui=True)
         elif key == "d" and dirs:
+            if selected_idx is None:
+                selected_idx = 0
             target = dirs[selected_idx]
             target_category = categories[selected_idx]
             status_lines.append(f"{COLORS['yellow']}Delete {abbreviate(target)} ({target_category})? y/n{COLORS['nc']}")

@@ -287,7 +287,7 @@ def render(states: list[tuple[str, str, str, int, int]], width: int, categories:
 
     title = "check-repo"
     right_columns_min = branch_col + 1 + ahead_col + 1 + behind_col + 1 + status_col
-    right_padding = 2
+    right_padding = 1
     min_line_width = 2 + 2 + max_target + 2 + right_columns_min + right_padding
     right_header = f"{'branch':>{branch_col}} {'ahead':>{ahead_col}} {'behind':>{behind_col}} {'status':>{status_col}}"
     header_line = f"{'Targets':<{max_target + 2}} {right_header}"
@@ -616,11 +616,15 @@ def main():
         elif key == "r":
             status_lines.append(f"{COLORS['blue']}REFRESHING...{COLORS['nc']}")
             selected_key = None
+            prior_selected_idx = selected_idx
             if selected_idx is not None and 0 <= selected_idx < len(dirs):
                 selected_key = (categories[selected_idx], dirs[selected_idx])
+            selected_idx = None
             run_scan(show_full_ui=True)
             if selected_key is not None:
-                selected_idx = next((i for i, pair in enumerate(zip(categories, dirs)) if pair == selected_key), selected_idx)
+                selected_idx = next((i for i, pair in enumerate(zip(categories, dirs)) if pair == selected_key), prior_selected_idx)
+            else:
+                selected_idx = prior_selected_idx
             if states:
                 selected_idx = min(max(selected_idx if selected_idx is not None else 0, 0), len(states) - 1)
             else:

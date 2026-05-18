@@ -1,0 +1,23 @@
+{
+  "default": [
+    "~/.config/eza",
+    "~/.config/nvim",
+    "~/corne",
+    "~/dotfiles",
+    "~/scripts"
+  ],
+  "linux": [
+    "~/.config/kitty",
+    "~/.config/dconf",
+    "~/.config/hypr",
+    "~/.config/waybar",
+    "~/.config/rofi",
+    "~/.config/swaync",
+    "~/.config/wlogout",
+    "~/system-config"
+  ],
+  "macos": [
+    "~/.config/kitty"
+  ],
+  "wsl": []
+}

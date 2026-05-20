@@ -563,6 +563,15 @@ def main():
     def selectable_indices() -> list[int]:
         return list(range(len(states)))
 
+    def preferred_initial_index() -> int | None:
+        if not states:
+            return None
+        for category in CATEGORY_ORDER:
+            for idx, cat in enumerate(categories):
+                if cat == category:
+                    return idx
+        return 0
+
     def next_select(current: int, direction: int) -> int:
         picks = selectable_indices()
         if not picks:
@@ -630,7 +639,7 @@ def main():
     run_scan(show_full_ui=interactive)
     if not interactive:
         return
-    selected_idx = 0
+    selected_idx = preferred_initial_index()
     status_lines.append(f"{COLORS['cyan']}Ready.{COLORS['nc']} Use commands above.")
 
     while True:
@@ -645,15 +654,21 @@ def main():
             return
         if key in {"j", "DOWN"}:
             if selected_idx is None:
-                selected_idx = 0
+                selected_idx = preferred_initial_index()
+                if selected_idx is None:
+                    continue
             selected_idx = next_select(selected_idx, 1)
         elif key in {"k", "UP"}:
             if selected_idx is None:
-                selected_idx = 0
+                selected_idx = preferred_initial_index()
+                if selected_idx is None:
+                    continue
             selected_idx = next_select(selected_idx, -1)
         elif key in {"p", "P"}:
             if selected_idx is None:
-                selected_idx = 0
+                selected_idx = preferred_initial_index()
+                if selected_idx is None:
+                    continue
             blocked_states = {"CLEAN", "NOT_FOUND", "NOT_REPO"}
             if states[selected_idx][0] in blocked_states:
                 state_name = states[selected_idx][0]
@@ -728,7 +743,10 @@ def main():
                     printed_lines = len(lines)
                     states[added_idx] = check_repo(new_repo)
                 else:
-                    selected_idx = min(selected_idx, len(states) - 1) if states else 0
+                    if states:
+                        selected_idx = min(max(selected_idx if selected_idx is not None else preferred_initial_index() or 0, 0), len(states) - 1)
+                    else:
+                        selected_idx = None
                 status_lines.append(f"{COLORS['green']}Added repo ({category}):{COLORS['nc']} {abbreviate(new_repo)}")
             else:
                 status_lines.append(f"{COLORS['yellow']}Not added (empty or duplicate).{COLORS['nc']}")
@@ -742,13 +760,16 @@ def main():
             dirs = [d for _, d in targets]
             categories = [c for c, _ in targets]
             states = [previous.get((cat, d), ("PENDING", abbreviate(d), "-", 0, 0)) for cat, d in targets]
-            selected_idx = min(selected_idx, len(states) - 1) if states else 0
+            if states:
+                selected_idx = min(max(selected_idx if selected_idx is not None else preferred_initial_index() or 0, 0), len(states) - 1)
+            else:
+                selected_idx = None
             mode = "all categories" if show_all_categories else "current system categories"
             status_lines.append(f"{COLORS['cyan']}Display mode (toggle):{COLORS['nc']} {mode}")
             run_scan(show_full_ui=True)
         elif key == "d" and dirs:
             if selected_idx is None:
-                selected_idx = 0
+                selected_idx = preferred_initial_index()
             target = dirs[selected_idx]
             target_category = categories[selected_idx]
             status_lines.append(f"{COLORS['yellow']}Delete {abbreviate(target)} ({target_category})? y/n{COLORS['nc']}")

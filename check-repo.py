@@ -26,6 +26,7 @@ COLORS = {
 
 REPO_STATES = {"CLEAN", "UPDATES", "DIRTY", "NOT_FOUND", "NOT_REPO", "PENDING", "PULLING", "PUSHING", "DELETING"}
 CONFIG_FILE = "repo_targets.json"
+CATEGORY_ORDER = ("default", "linux", "macos", "wsl")
 
 
 def get_config_path() -> str:
@@ -123,7 +124,33 @@ def line_fit(text: str, width: int) -> str:
     plain = visible_text(text)
     if len(plain) <= width:
         return text
-    return plain[: max(0, width - 3)] + "..."
+    if width <= 0:
+        return ""
+    if width <= 3:
+        return "." * width
+
+    visible_limit = width - 3
+    out: list[str] = []
+    visible_count = 0
+    i = 0
+    had_ansi = False
+
+    while i < len(text) and visible_count < visible_limit:
+        if text[i] == "\x1b":
+            m = ANSI_RE.match(text, i)
+            if m:
+                out.append(m.group(0))
+                i = m.end()
+                had_ansi = True
+                continue
+        out.append(text[i])
+        visible_count += 1
+        i += 1
+
+    out.append("...")
+    if had_ansi:
+        out.append(COLORS["nc"])
+    return "".join(out)
 
 
 def format_branch(branch: str) -> str:
@@ -227,7 +254,46 @@ def draw_progress_row(bar: str, done: int, total: int, width: int) -> str:
     return "".join(row)
 
 
-def render(states: list[tuple[str, str, str, int, int]], width: int, categories: list[str], selected_idx: int | None = None) -> list[str]:
+def compute_render_width(states: list[tuple[str, str, str, int, int]], width: int, categories: list[str]) -> int:
+    max_target = max(len(t) for _, t, *_ in states) if states else 24
+    status_col = max(len(s) for s in REPO_STATES)
+    branch_col = len("branch")
+    ahead_col = len("ahead")
+    behind_col = len("behind")
+
+    right_columns_min = branch_col + 1 + ahead_col + 1 + behind_col + 1 + status_col
+    right_padding = 1
+    min_line_width = 2 + 2 + max_target + 2 + right_columns_min + right_padding
+    right_header = f"{'branch':>{branch_col}} {'ahead':>{ahead_col}} {'behind':>{behind_col}} {'status':>{status_col}}"
+    title = "check-repo"
+    done = sum(1 for s, *_ in states if s != "PENDING")
+    total = len(states)
+    clean = sum(1 for s, *_ in states if s == "CLEAN")
+    updates = sum(1 for s, *_ in states if s == "UPDATES")
+    dirty = sum(1 for s, *_ in states if s == "DIRTY")
+    missing_not_found = sum(1 for s, *_ in states if s == "NOT_FOUND")
+    missing_not_repo = sum(1 for s, *_ in states if s == "NOT_REPO")
+    missing = missing_not_found + missing_not_repo
+    pending = total - done
+
+    bw = max(20, min(36, width - 24))
+    fill = int(done * bw / total) if total else bw
+    bar = "█" * fill + "░" * (bw - fill)
+    progress_row = draw_progress_row(bar, done, total, width - 2)
+
+    header_line = f"{'Targets':<{max_target + 2}} {right_header}"
+    target_lines = [f"  {t} {format_branch(b)} {st}" for st, t, b, *_ in states]
+    summary_rows = [
+        f"Pending     {pending}",
+        f"Healthy     {clean}",
+        f"Missing     {missing} ({missing_not_found} not found, {missing_not_repo} not repo)",
+        f"Attention   {updates + dirty} ({updates} updates, {dirty} dirty)",
+    ]
+    content_rows = [title, progress_row, header_line, *target_lines, *summary_rows]
+    return max(width, min_line_width, max(len(visible_text(r)) for r in content_rows) + 2)
+
+
+def render(states: list[tuple[str, str, str, int, int]], width: int, categories: list[str], selected_idx: int | None = None) -> tuple[list[str], int]:
     done = sum(1 for s, *_ in states if s != "PENDING")
     total = len(states)
     clean = sum(1 for s, *_ in states if s == "CLEAN")
@@ -278,7 +344,7 @@ def render(states: list[tuple[str, str, str, int, int]], width: int, categories:
         category_groups.setdefault(category, []).append((idx, target, branch, ahead, behind, state, color))
 
     grouped_target_rows = []
-    for category in dict.fromkeys(categories):
+    for category in CATEGORY_ORDER:
         rows = category_groups.get(category)
         if not rows:
             continue
@@ -292,7 +358,7 @@ def render(states: list[tuple[str, str, str, int, int]], width: int, categories:
     right_header = f"{'branch':>{branch_col}} {'ahead':>{ahead_col}} {'behind':>{behind_col}} {'status':>{status_col}}"
     header_line = f"{'Targets':<{max_target + 2}} {right_header}"
     content_rows = [title, progress_row, header_line, *[r[1] if r[0] == "header" else f"  {r[1][1]} {format_branch(r[1][2])} {r[1][5]}" for r in grouped_target_rows], *summary_rows]
-    computed_width = max(width, min_line_width, max(len(visible_text(r)) for r in content_rows) + 2)
+    computed_width = compute_render_width(states, width, categories)
 
     out = []
     out.append(draw_top(computed_width))
@@ -340,7 +406,7 @@ def render(states: list[tuple[str, str, str, int, int]], width: int, categories:
     out.append(draw_row(f"{COLORS['yellow']}{summary_rows[2]}{COLORS['nc']}", computed_width))
     out.append(draw_row(f"{COLORS['red']}{summary_rows[3]}{COLORS['nc']}", computed_width))
     out.append(draw_bottom(computed_width))
-    return out
+    return out, computed_width
 
 
 
@@ -353,6 +419,10 @@ def is_wsl() -> bool:
     except OSError:
         return False
 
+
+
+def sort_targets(targets: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    return sorted(targets, key=lambda x: (abbreviate(x[1]).lower(), x[0]))
 
 def load_repo_targets() -> list[tuple[str, str]]:
     with open(get_config_path(), "r", encoding="utf-8") as f:
@@ -369,7 +439,7 @@ def load_repo_targets() -> list[tuple[str, str]]:
         else:
             targets.extend(("linux", os.path.expanduser(d)) for d in config.get("linux", []))
 
-    return targets
+    return sort_targets(targets)
 
 
 def normalize_user_path(path: str) -> str:
@@ -421,7 +491,7 @@ def scan_all(dirs: list[str], categories: list[str], width: int, selected_idx: i
         printed_lines = 0
         while True:
             if render_live:
-                lines = render(states, width, categories, selected_idx=selected_idx)
+                lines, _ = render(states, width, categories, selected_idx=selected_idx)
                 if sys.stdout.isatty() and printed_lines:
                     sys.stdout.write(f"\033[{printed_lines}A")
                 sys.stdout.write("\n".join(lines) + "\n")
@@ -492,9 +562,9 @@ def main():
             with open(get_config_path(), "r", encoding="utf-8") as f:
                 config = json.load(f)
             merged: list[tuple[str, str]] = []
-            for cat in ("default", "linux", "macos", "wsl"):
+            for cat in CATEGORY_ORDER:
                 merged.extend((cat, os.path.expanduser(d)) for d in config.get(cat, []))
-            return merged
+            return sort_targets(merged)
         return all_targets
 
     targets = visible_targets()
@@ -506,7 +576,7 @@ def main():
         live_render = sys.stdout.isatty()
         states, _ = scan_all(dirs, categories, width, selected_idx=None, render_live=live_render)
         if not live_render:
-            lines = render(states, width, categories, selected_idx=None)
+            lines, _ = render(states, width, categories, selected_idx=None)
             sys.stdout.write("\n".join(lines) + "\n")
         return
 
@@ -517,7 +587,19 @@ def main():
     interactive = args.interactive and sys.stdin.isatty() and sys.stdout.isatty()
 
     def selectable_indices() -> list[int]:
-        return list(range(len(states)))
+        ordered: list[int] = []
+        for category in CATEGORY_ORDER:
+            ordered.extend(i for i, cat in enumerate(categories) if cat == category)
+        return ordered
+
+    def preferred_initial_index() -> int | None:
+        if not states:
+            return None
+        for category in CATEGORY_ORDER:
+            for idx, cat in enumerate(categories):
+                if cat == category:
+                    return idx
+        return 0
 
     def next_select(current: int, direction: int) -> int:
         picks = selectable_indices()
@@ -533,14 +615,17 @@ def main():
         while len(rows) < 4:
             rows.insert(0, "")
         return [
-            draw_top_with_title(width, "status"),
-            *[draw_row(msg, width) for msg in rows],
-            draw_bottom(width),
+            draw_top_with_title(main_width(), "status"),
+            *[draw_row(msg, main_width()) for msg in rows],
+            draw_bottom(main_width()),
         ]
 
+    def main_width() -> int:
+        return compute_render_width(states, width, categories)
+
     def render_ui() -> list[str]:
-        lines = render(states, width, categories, selected_idx=selected_idx)
-        lines.extend(legend_box(width))
+        lines, current_width = render(states, width, categories, selected_idx=selected_idx)
+        lines.extend(legend_box(current_width))
         lines.extend(status_box(status_lines))
         return lines
 
@@ -563,11 +648,11 @@ def main():
             while True:
                 if show_full_ui:
                     scan_selected = None if hide_selection else selected_idx
-                    lines = render(states, width, categories, selected_idx=scan_selected)
-                    lines.extend(legend_box(width))
+                    lines, current_width = render(states, width, categories, selected_idx=scan_selected)
+                    lines.extend(legend_box(current_width))
                     lines.extend(status_box(status_lines))
                 else:
-                    lines = render(states, width, categories, selected_idx=None)
+                    lines, _ = render(states, width, categories, selected_idx=None)
                 clear_screen()
                 sys.stdout.write("\n".join(lines) + "\n")
                 sys.stdout.flush()
@@ -583,7 +668,7 @@ def main():
     run_scan(show_full_ui=interactive)
     if not interactive:
         return
-    selected_idx = 0
+    selected_idx = preferred_initial_index()
     status_lines.append(f"{COLORS['cyan']}Ready.{COLORS['nc']} Use commands above.")
 
     while True:
@@ -598,15 +683,21 @@ def main():
             return
         if key in {"j", "DOWN"}:
             if selected_idx is None:
-                selected_idx = 0
+                selected_idx = preferred_initial_index()
+                if selected_idx is None:
+                    continue
             selected_idx = next_select(selected_idx, 1)
         elif key in {"k", "UP"}:
             if selected_idx is None:
-                selected_idx = 0
+                selected_idx = preferred_initial_index()
+                if selected_idx is None:
+                    continue
             selected_idx = next_select(selected_idx, -1)
         elif key in {"p", "P"}:
             if selected_idx is None:
-                selected_idx = 0
+                selected_idx = preferred_initial_index()
+                if selected_idx is None:
+                    continue
             blocked_states = {"CLEAN", "NOT_FOUND", "NOT_REPO"}
             if states[selected_idx][0] in blocked_states:
                 state_name = states[selected_idx][0]
@@ -681,7 +772,10 @@ def main():
                     printed_lines = len(lines)
                     states[added_idx] = check_repo(new_repo)
                 else:
-                    selected_idx = min(selected_idx, len(states) - 1) if states else 0
+                    if states:
+                        selected_idx = min(max(selected_idx if selected_idx is not None else preferred_initial_index() or 0, 0), len(states) - 1)
+                    else:
+                        selected_idx = None
                 status_lines.append(f"{COLORS['green']}Added repo ({category}):{COLORS['nc']} {abbreviate(new_repo)}")
             else:
                 status_lines.append(f"{COLORS['yellow']}Not added (empty or duplicate).{COLORS['nc']}")
@@ -695,13 +789,16 @@ def main():
             dirs = [d for _, d in targets]
             categories = [c for c, _ in targets]
             states = [previous.get((cat, d), ("PENDING", abbreviate(d), "-", 0, 0)) for cat, d in targets]
-            selected_idx = min(selected_idx, len(states) - 1) if states else 0
+            if states:
+                selected_idx = min(max(selected_idx if selected_idx is not None else preferred_initial_index() or 0, 0), len(states) - 1)
+            else:
+                selected_idx = None
             mode = "all categories" if show_all_categories else "current system categories"
             status_lines.append(f"{COLORS['cyan']}Display mode (toggle):{COLORS['nc']} {mode}")
             run_scan(show_full_ui=True)
         elif key == "d" and dirs:
             if selected_idx is None:
-                selected_idx = 0
+                selected_idx = preferred_initial_index()
             target = dirs[selected_idx]
             target_category = categories[selected_idx]
             status_lines.append(f"{COLORS['yellow']}Delete {abbreviate(target)} ({target_category})? y/n{COLORS['nc']}")

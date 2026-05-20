@@ -227,7 +227,46 @@ def draw_progress_row(bar: str, done: int, total: int, width: int) -> str:
     return "".join(row)
 
 
-def render(states: list[tuple[str, str, str, int, int]], width: int, categories: list[str], selected_idx: int | None = None) -> list[str]:
+def compute_render_width(states: list[tuple[str, str, str, int, int]], width: int, categories: list[str]) -> int:
+    max_target = max(len(t) for _, t, *_ in states) if states else 24
+    status_col = max(len(s) for s in REPO_STATES)
+    branch_col = len("branch")
+    ahead_col = len("ahead")
+    behind_col = len("behind")
+
+    right_columns_min = branch_col + 1 + ahead_col + 1 + behind_col + 1 + status_col
+    right_padding = 1
+    min_line_width = 2 + 2 + max_target + 2 + right_columns_min + right_padding
+    right_header = f"{'branch':>{branch_col}} {'ahead':>{ahead_col}} {'behind':>{behind_col}} {'status':>{status_col}}"
+    title = "check-repo"
+    done = sum(1 for s, *_ in states if s != "PENDING")
+    total = len(states)
+    clean = sum(1 for s, *_ in states if s == "CLEAN")
+    updates = sum(1 for s, *_ in states if s == "UPDATES")
+    dirty = sum(1 for s, *_ in states if s == "DIRTY")
+    missing_not_found = sum(1 for s, *_ in states if s == "NOT_FOUND")
+    missing_not_repo = sum(1 for s, *_ in states if s == "NOT_REPO")
+    missing = missing_not_found + missing_not_repo
+    pending = total - done
+
+    bw = max(20, min(36, width - 24))
+    fill = int(done * bw / total) if total else bw
+    bar = "█" * fill + "░" * (bw - fill)
+    progress_row = draw_progress_row(bar, done, total, width - 2)
+
+    header_line = f"{'Targets':<{max_target + 2}} {right_header}"
+    target_lines = [f"  {t} {format_branch(b)} {st}" for st, t, b, *_ in states]
+    summary_rows = [
+        f"Pending     {pending}",
+        f"Healthy     {clean}",
+        f"Missing     {missing} ({missing_not_found} not found, {missing_not_repo} not repo)",
+        f"Attention   {updates + dirty} ({updates} updates, {dirty} dirty)",
+    ]
+    content_rows = [title, progress_row, header_line, *target_lines, *summary_rows]
+    return max(width, min_line_width, max(len(visible_text(r)) for r in content_rows) + 2)
+
+
+def render(states: list[tuple[str, str, str, int, int]], width: int, categories: list[str], selected_idx: int | None = None) -> tuple[list[str], int]:
     done = sum(1 for s, *_ in states if s != "PENDING")
     total = len(states)
     clean = sum(1 for s, *_ in states if s == "CLEAN")
@@ -292,7 +331,7 @@ def render(states: list[tuple[str, str, str, int, int]], width: int, categories:
     right_header = f"{'branch':>{branch_col}} {'ahead':>{ahead_col}} {'behind':>{behind_col}} {'status':>{status_col}}"
     header_line = f"{'Targets':<{max_target + 2}} {right_header}"
     content_rows = [title, progress_row, header_line, *[r[1] if r[0] == "header" else f"  {r[1][1]} {format_branch(r[1][2])} {r[1][5]}" for r in grouped_target_rows], *summary_rows]
-    computed_width = max(width, min_line_width, max(len(visible_text(r)) for r in content_rows) + 2)
+    computed_width = compute_render_width(states, width, categories)
 
     out = []
     out.append(draw_top(computed_width))
@@ -340,7 +379,7 @@ def render(states: list[tuple[str, str, str, int, int]], width: int, categories:
     out.append(draw_row(f"{COLORS['yellow']}{summary_rows[2]}{COLORS['nc']}", computed_width))
     out.append(draw_row(f"{COLORS['red']}{summary_rows[3]}{COLORS['nc']}", computed_width))
     out.append(draw_bottom(computed_width))
-    return out
+    return out, computed_width
 
 
 
@@ -353,6 +392,10 @@ def is_wsl() -> bool:
     except OSError:
         return False
 
+
+
+def sort_targets(targets: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    return sorted(targets, key=lambda x: (abbreviate(x[1]).lower(), x[0]))
 
 def load_repo_targets() -> list[tuple[str, str]]:
     with open(get_config_path(), "r", encoding="utf-8") as f:
@@ -369,7 +412,7 @@ def load_repo_targets() -> list[tuple[str, str]]:
         else:
             targets.extend(("linux", os.path.expanduser(d)) for d in config.get("linux", []))
 
-    return targets
+    return sort_targets(targets)
 
 
 def normalize_user_path(path: str) -> str:
@@ -421,7 +464,7 @@ def scan_all(dirs: list[str], categories: list[str], width: int, selected_idx: i
         printed_lines = 0
         while True:
             if render_live:
-                lines = render(states, width, categories, selected_idx=selected_idx)
+                lines, _ = render(states, width, categories, selected_idx=selected_idx)
                 if sys.stdout.isatty() and printed_lines:
                     sys.stdout.write(f"\033[{printed_lines}A")
                 sys.stdout.write("\n".join(lines) + "\n")
@@ -494,7 +537,7 @@ def main():
             merged: list[tuple[str, str]] = []
             for cat in ("default", "linux", "macos", "wsl"):
                 merged.extend((cat, os.path.expanduser(d)) for d in config.get(cat, []))
-            return merged
+            return sort_targets(merged)
         return all_targets
 
     targets = visible_targets()
@@ -506,7 +549,7 @@ def main():
         live_render = sys.stdout.isatty()
         states, _ = scan_all(dirs, categories, width, selected_idx=None, render_live=live_render)
         if not live_render:
-            lines = render(states, width, categories, selected_idx=None)
+            lines, _ = render(states, width, categories, selected_idx=None)
             sys.stdout.write("\n".join(lines) + "\n")
         return
 
@@ -533,14 +576,17 @@ def main():
         while len(rows) < 4:
             rows.insert(0, "")
         return [
-            draw_top_with_title(width, "status"),
-            *[draw_row(msg, width) for msg in rows],
-            draw_bottom(width),
+            draw_top_with_title(main_width(), "status"),
+            *[draw_row(msg, main_width()) for msg in rows],
+            draw_bottom(main_width()),
         ]
 
+    def main_width() -> int:
+        return compute_render_width(states, width, categories)
+
     def render_ui() -> list[str]:
-        lines = render(states, width, categories, selected_idx=selected_idx)
-        lines.extend(legend_box(width))
+        lines, current_width = render(states, width, categories, selected_idx=selected_idx)
+        lines.extend(legend_box(current_width))
         lines.extend(status_box(status_lines))
         return lines
 
@@ -563,11 +609,11 @@ def main():
             while True:
                 if show_full_ui:
                     scan_selected = None if hide_selection else selected_idx
-                    lines = render(states, width, categories, selected_idx=scan_selected)
-                    lines.extend(legend_box(width))
+                    lines, current_width = render(states, width, categories, selected_idx=scan_selected)
+                    lines.extend(legend_box(current_width))
                     lines.extend(status_box(status_lines))
                 else:
-                    lines = render(states, width, categories, selected_idx=None)
+                    lines, _ = render(states, width, categories, selected_idx=None)
                 clear_screen()
                 sys.stdout.write("\n".join(lines) + "\n")
                 sys.stdout.flush()

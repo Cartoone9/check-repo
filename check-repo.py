@@ -124,7 +124,33 @@ def line_fit(text: str, width: int) -> str:
     plain = visible_text(text)
     if len(plain) <= width:
         return text
-    return plain[: max(0, width - 3)] + "..."
+    if width <= 0:
+        return ""
+    if width <= 3:
+        return "." * width
+
+    visible_limit = width - 3
+    out: list[str] = []
+    visible_count = 0
+    i = 0
+    had_ansi = False
+
+    while i < len(text) and visible_count < visible_limit:
+        if text[i] == "\x1b":
+            m = ANSI_RE.match(text, i)
+            if m:
+                out.append(m.group(0))
+                i = m.end()
+                had_ansi = True
+                continue
+        out.append(text[i])
+        visible_count += 1
+        i += 1
+
+    out.append("...")
+    if had_ansi:
+        out.append(COLORS["nc"])
+    return "".join(out)
 
 
 def format_branch(branch: str) -> str:

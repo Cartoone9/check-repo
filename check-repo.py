@@ -860,13 +860,14 @@ def main():
             target_category = categories[selected_idx]
             display_order = selectable_indices()
             next_target_key: tuple[str, str] | None = None
-            if selected_idx in display_order:
-                pos = display_order.index(selected_idx)
-                if pos + 1 < len(display_order):
-                    next_idx = display_order[pos + 1]
+            same_category_order = [i for i in display_order if categories[i] == target_category]
+            if selected_idx in same_category_order:
+                pos = same_category_order.index(selected_idx)
+                if pos + 1 < len(same_category_order):
+                    next_idx = same_category_order[pos + 1]
                     next_target_key = (categories[next_idx], dirs[next_idx])
                 elif pos > 0:
-                    prev_idx = display_order[pos - 1]
+                    prev_idx = same_category_order[pos - 1]
                     next_target_key = (categories[prev_idx], dirs[prev_idx])
             status_lines.append(f"{COLORS['yellow']}Delete {abbreviate(target)} ({target_category})? y/n{COLORS['nc']}")
             lines = render_ui()

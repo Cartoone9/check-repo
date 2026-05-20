@@ -17,6 +17,7 @@
 - [Output states](#output-states)
 - [Environment variables](#environment-variables)
 - [Credits](#credits)
+- [Recommendation](#recommendation)
 - [License](#license)
 <!-- tocstop -->
 
@@ -177,6 +178,18 @@ Example:
 
 ```bash
 CHECK_REPOS_CONFIG=~/my-repo-list.json python3 check-repo.py
+```
+
+## Recommendation
+
+`check-repo` works well after running system update tools such as
+[topgrade](https://github.com/topgrade-rs/topgrade).
+
+For example, I use the following alias to update my system and then check the
+state of my repositories:
+
+```bash
+alias update='topgrade && echo && check'
 ```
 
 ## Credits

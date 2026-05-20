@@ -26,6 +26,7 @@ COLORS = {
 
 REPO_STATES = {"CLEAN", "UPDATES", "DIRTY", "NOT_FOUND", "NOT_REPO", "PENDING", "PULLING", "PUSHING", "DELETING"}
 CONFIG_FILE = "repo_targets.json"
+CATEGORY_ORDER = ("default", "linux", "macos", "wsl")
 
 
 def get_config_path() -> str:
@@ -317,7 +318,7 @@ def render(states: list[tuple[str, str, str, int, int]], width: int, categories:
         category_groups.setdefault(category, []).append((idx, target, branch, ahead, behind, state, color))
 
     grouped_target_rows = []
-    for category in dict.fromkeys(categories):
+    for category in CATEGORY_ORDER:
         rows = category_groups.get(category)
         if not rows:
             continue
@@ -535,7 +536,7 @@ def main():
             with open(get_config_path(), "r", encoding="utf-8") as f:
                 config = json.load(f)
             merged: list[tuple[str, str]] = []
-            for cat in ("default", "linux", "macos", "wsl"):
+            for cat in CATEGORY_ORDER:
                 merged.extend((cat, os.path.expanduser(d)) for d in config.get(cat, []))
             return sort_targets(merged)
         return all_targets

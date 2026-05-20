@@ -858,6 +858,16 @@ def main():
                 selected_idx = preferred_initial_index()
             target = dirs[selected_idx]
             target_category = categories[selected_idx]
+            display_order = selectable_indices()
+            next_target_key: tuple[str, str] | None = None
+            if selected_idx in display_order:
+                pos = display_order.index(selected_idx)
+                if pos + 1 < len(display_order):
+                    next_idx = display_order[pos + 1]
+                    next_target_key = (categories[next_idx], dirs[next_idx])
+                elif pos > 0:
+                    prev_idx = display_order[pos - 1]
+                    next_target_key = (categories[prev_idx], dirs[prev_idx])
             status_lines.append(f"{COLORS['yellow']}Delete {abbreviate(target)} ({target_category})? y/n{COLORS['nc']}")
             lines = render_ui()
             clear_screen()
@@ -883,7 +893,10 @@ def main():
                     status_lines.append(f"{COLORS['red']}Deleted repo:{COLORS['nc']} {abbreviate(target)}")
                     continue
                 states = [previous.get((cat, d), ("PENDING", abbreviate(d), "-", 0, 0)) for cat, d in targets]
-                selected_idx = min(selected_idx, len(dirs) - 1)
+                if next_target_key is not None:
+                    selected_idx = next((i for i, pair in enumerate(zip(categories, dirs)) if pair == next_target_key), None)
+                if selected_idx is None:
+                    selected_idx = min(max(selected_idx if selected_idx is not None else 0, 0), len(dirs) - 1)
                 status_lines.append(f"{COLORS['red']}Deleted repo:{COLORS['nc']} {abbreviate(target)}")
             else:
                 status_lines.append(f"{COLORS['yellow']}Delete failed (repo not found in {target_category} targets).{COLORS['nc']}")
